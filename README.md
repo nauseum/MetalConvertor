@@ -12,4 +12,5 @@ const csvData = `Item number,Configuration,Product name,Au %,Ag %,Pt %,Pd %;09Y0
 The alloys will show top to bottom in the drop down menu in the order you create them in this long csvData string 
 
 Built by Google Gemini.
+
 ![522518278_2816977608491488_315262941121930570_n](https://github.com/user-attachments/assets/89b300f4-4ac6-4421-8c3b-7e1e86157dc3)
