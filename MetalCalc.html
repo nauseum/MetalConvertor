@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Casting Alloy Converter</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+        }
+        .container {
+            background-color: #ffffff;
+            padding: 35px;
+            border-radius: 12px;
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 800px;
+        }
+        .header-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+        h1 {
+            color: #1c1e21;
+            font-size: 24px;
+            margin: 0;
+        }
+        .status-banner {
+            text-align: center;
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-weight: 500;
+        }
+        .status-loading { background-color: #e9ecef; color: #495057; }
+        .status-success { background-color: #d4edda; color: #155724; }
+        .status-error { background-color: #f8d7da; color: #721c24; }
+        .main-form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: auto auto;
+            gap: 20px;
+            margin-bottom: 25px;
+        }
+        .price-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+        .form-group { display: flex; flex-direction: column; }
+        label { margin-bottom: 8px; color: #606770; font-weight: 500; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        input[type="number"], select {
+            width: 100%; padding: 12px; border: 1px solid #dddfe2; border-radius: 6px;
+            box-sizing: border-box; font-size: 16px; background-color: #f5f6f7;
+        }
+        input[readonly] { background-color: #e9ecef; cursor: not-allowed; }
+        button {
+            width: 100%; padding: 14px; background-color: #007bff; color: white; border: none;
+            border-radius: 6px; cursor: pointer; font-size: 18px; font-weight: bold; transition: background-color 0.2s;
+        }
+        button:hover:not(:disabled) { background-color: #0056b3; }
+        button:disabled { background-color: #6c757d; cursor: not-allowed; }
+        #results {
+            margin-top: 30px; padding-top: 20px; border-top: 1px solid #e0e0e0;
+            display: none; grid-template-columns: 1fr 1fr; gap: 25px;
+        }
+        .results-column { display: flex; flex-direction: column; gap: 15px; }
+        .result-card {
+            background-color: #f9f9f9; padding: 20px; border-radius: 8px; border: 1px solid #eee;
+        }
+        .result-card h2 {
+            margin-top: 0; margin-bottom: 15px; font-size: 18px; color: #0056b3;
+            border-bottom: 1px solid #e0e0e0; padding-bottom: 10px;
+        }
+        .result-line { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 16px; }
+        .result-line strong { color: #333; }
+        .added { color: #28a745; font-weight: bold; }
+        .lost { color: #dc3545; font-weight: bold; }
+        .neutral { color: #6c757d; font-weight: bold; }
+        .total { font-weight: bold; border-top: 1px solid #ccc; padding-top: 8px; }
+        
+        @media (max-width: 768px) {
+            .price-grid { grid-template-columns: repeat(3, 1fr); }
+            .header-container { flex-direction: column; align-items: flex-start; gap: 15px;}
+        }
+        @media (max-width: 480px) {
+            .main-form-grid { grid-template-columns: 1fr; }
+            .price-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header-container">
+            <h1>Alloy & Cost Converter</h1>
+            <div class="form-group">
+                <label for="currencySelector">Currency:</label>
+                <select id="currencySelector">
+                    <option value="USD" selected>USD ($)</option>
+                    <option value="AUD">AUD (A$)</option>
+                    <option value="CAD">CAD (C$)</option>
+                    <option value="GBP">GBP (£)</option>
+                    <option value="EUR">EUR (€)</option>
+                </select>
+            </div>
+        </div>
+        <div id="status" class="status-banner status-loading">Fetching live prices and exchange rates...</div>
+
+        <div class="main-form-grid">
+            <div class="form-group"><label for="fromAlloy">From Alloy:</label><select id="fromAlloy"></select></div>
+            <div class="form-group"><label for="grams">Grams to Convert:</label><input type="number" id="grams" placeholder="e.g., 100"></div>
+            <div class="form-group"><label for="toAlloy">To Alloy:</label><select id="toAlloy"></select></div>
+            <div class="form-group"><label for="targetGrams">Target Grams:</label><input type="number" id="targetGrams" placeholder="e.g., 150"></div>
+        </div>
+
+        <div class="price-grid">
+            <div class="form-group"><label id="goldPriceLabel" for="goldPrice">Gold ($/g):</label><input type="number" id="goldPrice" data-usd-value="0" readonly></div>
+            <div class="form-group"><label id="silverPriceLabel" for="silverPrice">Silver ($/g):</label><input type="number" id="silverPrice" data-usd-value="0" readonly></div>
+            <div class="form-group"><label id="palladiumPriceLabel" for="palladiumPrice">Palladium ($/g):</label><input type="number" id="palladiumPrice" data-usd-value="0" readonly></div>
+            <div class="form-group"><label id="platinumPriceLabel" for="platinumPrice">Platinum ($/g):</label><input type="number" id="platinumPrice" data-usd-value="0" readonly></div>
+            <div class="form-group"><label id="baseMetalPriceLabel" for="baseMetalPrice">Base Metal ($/g):</label><input type="number" id="baseMetalPrice" value="0.05" data-usd-value="0.05"></div>
+        </div>
+
+        <button id="convertButton" onclick="calculate()" disabled>Calculate Conversion</button>
+
+        <div id="results"></div>
+    </div>
+
+    <script>
+        const csvData = `Item number,Configuration,Product name,Au %,Ag %,Pt %,Pd %;09Y0,C00,9ct Yellow Gold,37.60,8.39,0.00,0.00;18Y0,C00,18ct Yellow Gold,75.10,12.10,0.00,0.00;22Y0,000,22ct Yellow Gold,91.70,5.50,0.00,0.00;FGC0,000,Fine Gold Casting Alloy,100.00,0.00,0.00,0.00`;
+
+        const currencySymbols = { USD: '$', AUD: 'A$', CAD: 'C$', GBP: '£', EUR: '€' };
+        let exchangeRates = { USD: 1, AUD: 1.5, CAD: 1.3, GBP: 0.8, EUR: 0.9 }; // Fallback rates
+
+        const alloys = csvData.split(';').slice(1).map(line => {
+            if (!line) return null;
+            const [itemNumber, configuration, productName, auStr, agStr, ptStr, pdStr] = line.split(',');
+            const au = parseFloat(auStr);
+            const ag = parseFloat(agStr);
+            const pt = parseFloat(ptStr) || 0;
+            const pd = parseFloat(pdStr) || 0;
+            const base = 100 - au - ag - pt - pd;
+            const uniqueProductName = `${productName.trim()}${configuration.trim() === 'PC0' || configuration.trim() === 'CW0' || (configuration.trim() === 'C00' && productName.includes("White")) ? ' - ' + configuration.trim() : ''}`;
+            return { uniqueName: uniqueProductName, name: productName.trim(), au, ag, pt, pd, base };
+        }).filter(Boolean);
+
+        const fromAlloySelect = document.getElementById('fromAlloy');
+        const toAlloySelect = document.getElementById('toAlloy');
+        alloys.forEach(alloy => {
+            [fromAlloySelect, toAlloySelect].forEach(select => {
+                const option = document.createElement('option');
+                option.value = alloy.uniqueName;
+                option.textContent = alloy.uniqueName;
+                select.appendChild(option);
+            });
+        });
+
+        async function fetchExchangeRates() {
+            const currencies = 'AUD,CAD,GBP,EUR';
+            try {
+                const response = await fetch(`https://api.frankfurter.app/latest?from=USD&to=${currencies}`);
+                if (!response.ok) throw new Error('Network response was not ok for exchange rates.');
+                const data = await response.json();
+                if (data && data.rates) {
+                    // Update rates object with fetched values
+                    Object.assign(exchangeRates, data.rates);
+                    return { success: true, loaded: Object.keys(data.rates) };
+                }
+                throw new Error('Invalid data structure for exchange rates.');
+            } catch (error) {
+                console.error('Exchange Rate Fetch Error:', error);
+                return { success: false, loaded: [] };
+            }
+        }
+        
+        async function initializeApp() {
+            const statusDiv = document.getElementById('status');
+            const convertButton = document.getElementById('convertButton');
+            let metalStatusMsg = '';
+            let rateStatusMsg = '';
+            let overallSuccess = true;
+
+            const rateResult = await fetchExchangeRates();
+            if (rateResult.success) {
+                rateStatusMsg = `${rateResult.loaded.join(', ')} exchange rates loaded.`;
+            } else {
+                rateStatusMsg = 'Could not fetch exchange rates; using fallbacks.';
+                overallSuccess = false;
+            }
+
+            const proxyUrl = 'https://api.allorigins.win/raw?url=';
+            const targetUrl = 'https://www.kitco.com/price/precious-metals/text-quotes';
+            
+            const priceInputs = document.querySelectorAll('.price-grid input[type="number"]');
+
+            try {
+                const response = await fetch(proxyUrl + encodeURIComponent(targetUrl));
+                if (!response.ok) throw new Error(`Metal price request failed: ${response.status}`);
+                
+                const content = await response.text();
+                const match = content.match(/<script id="__NEXT_DATA__" type="application\/json">(.*?)<\/script>/);
+                if (!match || !match[1]) throw new Error("Could not parse Kitco page data.");
+
+                const jsonData = JSON.parse(match[1]);
+                const priceData = jsonData.props.pageProps.dehydratedState.queries[0].state.data;
+
+                if (!priceData?.gold?.results[0] || !priceData?.silver?.results[0] || !priceData?.palladium?.results[0] || !priceData?.platinum?.results[0]) {
+                    throw new Error("JSON data structure is unexpected.");
+                }
+
+                const OUNCE_TO_GRAM = 31.1034768;
+                const priceMap = {
+                    goldPrice: (priceData.gold.results[0].bid / OUNCE_TO_GRAM),
+                    silverPrice: (priceData.silver.results[0].bid / OUNCE_TO_GRAM),
+                    palladiumPrice: (priceData.palladium.results[0].bid / OUNCE_TO_GRAM),
+                    platinumPrice: (priceData.platinum.results[0].bid / OUNCE_TO_GRAM)
+                };
+
+                priceInputs.forEach(input => {
+                    if (priceMap[input.id]) {
+                        input.value = priceMap[input.id].toFixed(2);
+                        input.dataset.usdValue = priceMap[input.id];
+                    }
+                });
+                
+                metalStatusMsg = 'Live metal prices loaded successfully!';
+
+            } catch (error) {
+                console.error('Live Price Fetch Error:', error);
+                metalStatusMsg = `<strong>Could not fetch live prices.</strong> Using fallback values.`;
+                overallSuccess = false;
+                const fallbackPrices = { goldPrice: 75.24, silverPrice: 0.95, palladiumPrice: 30.50, platinumPrice: 28.00 };
+                priceInputs.forEach(input => {
+                     if (fallbackPrices[input.id]) {
+                        input.value = fallbackPrices[input.id].toFixed(2);
+                        input.dataset.usdValue = fallbackPrices[input.id];
+                    }
+                });
+            } finally {
+                statusDiv.innerHTML = `${metalStatusMsg}<br><small>${rateStatusMsg}</small>`;
+                statusDiv.className = `status-banner ${overallSuccess ? 'status-success' : 'status-error'}`;
+                convertButton.disabled = false;
+            }
+        }
+
+        function updateDisplayedPrices() {
+            const selectedCurrency = document.getElementById('currencySelector').value;
+            const exchangeRate = exchangeRates[selectedCurrency] || 1;
+            const priceInputs = document.querySelectorAll('.price-grid input[type="number"]');
+
+            priceInputs.forEach(input => {
+                const usdValue = parseFloat(input.dataset.usdValue);
+                if (!isNaN(usdValue)) {
+                    input.value = (usdValue * exchangeRate).toFixed(2);
+                }
+            });
+        }
+
+        function calculate() {
+            const startGrams = parseFloat(document.getElementById('grams').value);
+            const finalGrams = parseFloat(document.getElementById('targetGrams').value);
+            const fromAlloy = alloys.find(a => a.uniqueName === fromAlloySelect.value);
+            const toAlloy = alloys.find(a => a.uniqueName === toAlloySelect.value);
+            
+            const goldPriceUSD = parseFloat(document.getElementById('goldPrice').dataset.usdValue);
+            const silverPriceUSD = parseFloat(document.getElementById('silverPrice').dataset.usdValue);
+            const palladiumPriceUSD = parseFloat(document.getElementById('palladiumPrice').dataset.usdValue);
+            const platinumPriceUSD = parseFloat(document.getElementById('platinumPrice').dataset.usdValue);
+            const baseMetalPriceUSD = parseFloat(document.getElementById('baseMetalPrice').dataset.usdValue);
+
+            const resultsDiv = document.getElementById('results');
+            
+            const selectedCurrency = document.getElementById('currencySelector').value;
+            const exchangeRate = exchangeRates[selectedCurrency] || 1;
+            const currencySymbol = currencySymbols[selectedCurrency] || '$';
+            
+            const showError = (message) => {
+                resultsDiv.innerHTML = `<div class="results-column" style="grid-column: 1 / -1;"><div class="result-card"><h2 class="lost">Error</h2><div class="result-line">${message}</div></div></div>`;
+                resultsDiv.style.display = 'grid';
+            };
+
+            if (!startGrams || !finalGrams || startGrams <= 0 || finalGrams <= 0 || isNaN(baseMetalPriceUSD)) {
+                showError('Please enter valid, positive weights and ensure all prices are set.');
+                return;
+            }
+            if (!fromAlloy || !toAlloy) { showError('Could not find alloy data.'); return; }
+
+            const goldInFrom = startGrams * (fromAlloy.au / 100);
+            const silverInFrom = startGrams * (fromAlloy.ag / 100);
+            const palladiumInFrom = startGrams * (fromAlloy.pd / 100);
+            const platinumInFrom = startGrams * (fromAlloy.pt / 100);
+            const baseMetalInFrom = startGrams * (fromAlloy.base / 100);
+            
+            const goldInTo = finalGrams * (toAlloy.au / 100);
+            const silverInTo = finalGrams * (toAlloy.ag / 100);
+            const palladiumInTo = finalGrams * (toAlloy.pd / 100);
+            const platinumInTo = finalGrams * (toAlloy.pt / 100);
+            const baseMetalInTo = finalGrams * (toAlloy.base / 100);
+
+            const goldDiff = goldInTo - goldInFrom;
+            const silverDiff = silverInTo - silverInFrom;
+            const palladiumDiff = palladiumInTo - palladiumInFrom;
+            const platinumDiff = platinumInTo - platinumInFrom;
+            const baseMetalDiff = baseMetalInTo - baseMetalInFrom;
+
+            const goldCostDiff = goldDiff * goldPriceUSD;
+            const silverCostDiff = silverDiff * silverPriceUSD;
+            const palladiumCostDiff = palladiumDiff * palladiumPriceUSD;
+            const platinumCostDiff = platinumDiff * platinumPriceUSD;
+            const baseMetalCostDiff = baseMetalDiff * baseMetalPriceUSD;
+
+            const fromValue = goldInFrom * goldPriceUSD + silverInFrom * silverPriceUSD + palladiumInFrom * palladiumPriceUSD + platinumInFrom * platinumPriceUSD;
+            const toValue = goldInTo * goldPriceUSD + silverInTo * silverPriceUSD + palladiumInTo * palladiumPriceUSD + platinumInTo * platinumPriceUSD;
+            const netCost = goldCostDiff + silverCostDiff + palladiumCostDiff + platinumCostDiff + baseMetalCostDiff;
+            
+            const getStatusClass = (value) => (value >= 0 ? 'added' : 'lost');
+            const formatCurrency = (value, symbol, rate) => `${value >= 0 ? '+' : '-'}${symbol}${Math.abs(value * rate).toFixed(2)}`;
+            const formatGrams = (value) => `${value >= 0 ? '+' : ''}${value.toFixed(3)}g`;
+
+            resultsDiv.style.display = 'grid';
+            resultsDiv.innerHTML = `
+                <div class="results-column">
+                    <div class="result-card">
+                        <h2>Conversion Summary</h2>
+                        <div class="result-line"><span>From:</span> <strong>${startGrams.toFixed(2)}g ${fromAlloy.name}</strong></div>
+                        <div class="result-line"><span>To:</span> <strong>${finalGrams.toFixed(2)}g ${toAlloy.name}</strong></div>
+                    </div>
+                    <div class="result-card">
+                        <h2>Metal Exchange (Grams)</h2>
+                        <div class="result-line"><span>Gold (Au):</span> <span class="${getStatusClass(goldDiff)}">${formatGrams(goldDiff)}</span></div>
+                        <div class="result-line"><span>Silver (Ag):</span> <span class="${getStatusClass(silverDiff)}">${formatGrams(silverDiff)}</span></div>
+                        <div class="result-line"><span>Palladium (Pd):</span><span class="${getStatusClass(palladiumDiff)}">${formatGrams(palladiumDiff)}</span></div>
+                        <div class="result-line"><span>Platinum (Pt):</span><span class="${getStatusClass(platinumDiff)}">${formatGrams(platinumDiff)}</span></div>
+                        <div class="result-line"><span>Base Metal:</span><span class="${getStatusClass(baseMetalDiff)}">${formatGrams(baseMetalDiff)}</span></div>
+                    </div>
+                </div>
+                <div class="results-column">
+                    <div class="result-card">
+                        <h2>Cost Analysis (${selectedCurrency})</h2>
+                        <div class="result-line"><span>Initial Precious Value:</span> <strong>${currencySymbol}${(fromValue * exchangeRate).toFixed(2)}</strong></div>
+                        <div class="result-line"><span>Au Cost/Saving:</span><strong class="${getStatusClass(goldCostDiff)}">${formatCurrency(goldCostDiff, currencySymbol, exchangeRate)}</strong></div>
+                        <div class="result-line"><span>Ag Cost/Saving:</span> <strong class="${getStatusClass(silverCostDiff)}">${formatCurrency(silverCostDiff, currencySymbol, exchangeRate)}</strong></div>
+                        <div class="result-line"><span>Pd Cost/Saving:</span><strong class="${getStatusClass(palladiumCostDiff)}">${formatCurrency(palladiumCostDiff, currencySymbol, exchangeRate)}</strong></div>
+                        <div class="result-line"><span>Pt Cost/Saving:</span><strong class="${getStatusClass(platinumCostDiff)}">${formatCurrency(platinumCostDiff, currencySymbol, exchangeRate)}</strong></div>
+                         <div class="result-line"><span>Base Metal Cost:</span><strong class="${getStatusClass(baseMetalCostDiff)}">${formatCurrency(baseMetalCostDiff, currencySymbol, exchangeRate)}</strong></div>
+                        <div class="result-line total"><span>Net Cost to Convert:</span><strong class="${getStatusClass(netCost)}">${formatCurrency(netCost, currencySymbol, exchangeRate)}</strong></div>
+                        <div class="result-line"><span>Final Precious Value:</span> <strong>${currencySymbol}${(toValue * exchangeRate).toFixed(2)}</strong></div>
+                    </div>
+                </div>`;
+        }
+
+        document.getElementById('currencySelector').addEventListener('change', (event) => {
+            const currency = event.target.value;
+            const symbol = currencySymbols[currency] || '$';
+            
+            document.querySelectorAll('.price-grid label').forEach(label => {
+                label.textContent = label.textContent.replace(/\(.*\)/, `(${symbol}/g)`);
+            });
+
+            updateDisplayedPrices();
+
+            if (document.getElementById('results').style.display === 'grid') {
+                calculate();
+            }
+        });
+
+        document.getElementById('baseMetalPrice').addEventListener('input', (event) => {
+            const selectedCurrency = document.getElementById('currencySelector').value;
+            const exchangeRate = exchangeRates[selectedCurrency] || 1;
+            const displayedValue = parseFloat(event.target.value) || 0;
+            
+            event.target.dataset.usdValue = (displayedValue / exchangeRate).toFixed(4);
+        });
+        
+        window.addEventListener('DOMContentLoaded', initializeApp);
+    </script>
+</body>
+</html>
